@@ -1,5 +1,5 @@
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.core.window import Window
@@ -10,7 +10,8 @@ import sqlite3
 from kivy.core.text import LabelBase
 from kivy.animation import Animation
 from kivy.uix.floatlayout import FloatLayout
-
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.behaviors import DragBehavior
 
 LabelBase.register(name='PhoneticFont', fn_regular='Fonts/phonetic.ttf')
 LabelBase.register(name='Vintage', fn_regular='Fonts/Vintage.otf')
@@ -62,6 +63,15 @@ class ThemeButton(FloatLayout):
             return True
         return super().on_touch_down(touch)
 
+class DraggableGrid(DragBehavior, GridLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.drag_distance = dp(20)
+        self.drag_rect_x = self.x
+        self.drag_rect_y = self.y
+        self.drag_rect_width = self.width
+        self.drag_rect_height = self.height
+
 class OwlishEnglishApp(App):
     def build(self):
         self.theme = 'light'
@@ -85,15 +95,19 @@ class OwlishEnglishApp(App):
 
         self.set_theme_colors()
 
-        self.layout = BoxLayout(orientation='vertical', padding=dp(24), spacing=dp(16))
+        self.main_layout = GridLayout(cols=1, spacing=dp(16), padding=dp(24))
 
         # Theme button
-        theme_layout = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
+        theme_layout = GridLayout(cols=2, size_hint_y=None, height=dp(48))
         theme_label = Label(text='Тёмная тема', color=self.text_color)
         self.theme_button = ThemeButton(self)
         theme_layout.add_widget(theme_label)
         theme_layout.add_widget(self.theme_button)
-        self.layout.add_widget(theme_layout)
+        self.main_layout.add_widget(theme_layout)
+
+        # Word display
+        self.word_layout = DraggableGrid(cols=1, spacing=dp(8), size_hint_y=None)
+        self.word_layout.bind(minimum_height=self.word_layout.setter('height'))
 
         self.word_label = Label(text='', font_name='Vintage', font_size=dp(32), bold=True, color=self.text_color,
                                 size_hint_y=None, height=dp(48))
@@ -105,24 +119,28 @@ class OwlishEnglishApp(App):
                                     opacity=0)
         self.learned_status_label = Label(text='', font_size=dp(18), color=self.text_color, size_hint_y=None, height=dp(32))
 
-        self.layout.add_widget(self.word_label)
-        self.layout.add_widget(self.transcription_label)
-        self.layout.add_widget(self.translation_label)
-        self.layout.add_widget(self.mnemonic_label)
-        self.layout.add_widget(self.learned_status_label)
+        self.word_layout.add_widget(self.word_label)
+        self.word_layout.add_widget(self.transcription_label)
+        self.word_layout.add_widget(self.translation_label)
+        self.word_layout.add_widget(self.mnemonic_label)
+        self.word_layout.add_widget(self.learned_status_label)
+
+        scroll_view = ScrollView(size_hint=(1, None), size=(Window.width, Window.height * 0.6))
+        scroll_view.add_widget(self.word_layout)
+        self.main_layout.add_widget(scroll_view)
 
         # Navigation buttons
-        nav_layout = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
+        nav_layout = GridLayout(cols=2, size_hint_y=None, height=dp(48), spacing=dp(8))
         prev_word_button = RoundedButton(text='<', size_hint_x=None, width=dp(48))
         prev_word_button.bind(on_release=self.load_previous_word)
         next_word_button = RoundedButton(text='>', size_hint_x=None, width=dp(48))
         next_word_button.bind(on_release=self.load_next_word)
         nav_layout.add_widget(prev_word_button)
         nav_layout.add_widget(next_word_button)
-        self.layout.add_widget(nav_layout)
+        self.main_layout.add_widget(nav_layout)
 
         # Action buttons
-        action_layout = BoxLayout(orientation='vertical', spacing=dp(8))
+        action_layout = GridLayout(cols=1, spacing=dp(8))
         show_translation_button = RoundedButton(text='Показать перевод', size_hint_y=None, height=dp(48))
         show_translation_button.bind(on_release=self.show_translation)
         show_mnemonic_button = RoundedButton(text='Показать подсказку', size_hint_y=None, height=dp(48))
@@ -132,12 +150,22 @@ class OwlishEnglishApp(App):
         action_layout.add_widget(show_translation_button)
         action_layout.add_widget(show_mnemonic_button)
         action_layout.add_widget(learned_button)
-        self.layout.add_widget(action_layout)
+        self.main_layout.add_widget(action_layout)
 
         self.word_history = []
         self.current_word_index = -1
         self.load_random_word()
-        return self.layout
+
+        # Bind swipe gestures
+        self.word_layout.bind(on_touch_up=self.on_touch_up)
+
+        return self.main_layout
+
+    def on_touch_up(self, instance, touch):
+        if touch.dx < -50:  # Swipe left
+            self.load_next_word(None)
+        elif touch.dx > 50:  # Swipe right
+            self.load_previous_word(None)
 
     def set_theme_colors(self):
         if self.theme == 'light':
@@ -158,12 +186,12 @@ class OwlishEnglishApp(App):
         anim.start(self.theme_button.switch)
 
     def update_colors(self):
-        self.layout.canvas.before.clear()
-        with self.layout.canvas.before:
+        self.main_layout.canvas.before.clear()
+        with self.main_layout.canvas.before:
             Color(*self.bg_color)
-            RoundedRectangle(pos=self.layout.pos, size=self.layout.size)
+            RoundedRectangle(pos=self.main_layout.pos, size=self.main_layout.size)
 
-        for child in self.layout.children:
+        for child in self.main_layout.walk():
             if isinstance(child, Label):
                 child.color = self.text_color
             elif isinstance(child, RoundedButton):
@@ -216,12 +244,11 @@ class OwlishEnglishApp(App):
     def update_learned_status(self):
         if self.current_word[3] == 1:
             self.learned_status_label.text = "Статус: Изучено"
-            self.learned_status_label.color = get_color_from_hex('#34C759')  # Зеленый цвет для изученных слов
+            self.learned_status_label.color = get_color_from_hex('#34C759')
         else:
             self.learned_status_label.text = "Статус: Не изучено"
-            self.learned_status_label.color = get_color_from_hex('#FF3B30')  # Красный цвет для неизученных слов
-        print(
-            f"Обновлен статус для слова '{self.current_word[1]}': {self.learned_status_label.text}")  # Добавим для отладки
+            self.learned_status_label.color = get_color_from_hex('#FF3B30')
+
     def show_translation(self, instance):
         self.translation_label.opacity = 1
 
@@ -233,15 +260,10 @@ class OwlishEnglishApp(App):
             self.cursor.execute("UPDATE words SET learned = 1 WHERE id = ?", (self.current_word[0],))
             self.conn.commit()
             self.current_word = list(self.current_word)
-            self.current_word[3] = 1  # Обновляем статус изучения в текущем слове
+            self.current_word[3] = 1
             self.current_word = tuple(self.current_word)
             self.update_learned_status()
-            print(f"Слово '{self.current_word[1]}' отмечено как изученное")  # Для отладки
-
-            # Обновляем текущее слово в истории
             self.word_history[self.current_word_index] = self.current_word
-
-            # Загружаем следующее слово
             self.load_next_word(None)
 
     def on_stop(self):
@@ -249,3 +271,4 @@ class OwlishEnglishApp(App):
 
 if __name__ == '__main__':
     OwlishEnglishApp().run()
+
