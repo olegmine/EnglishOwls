@@ -1,0 +1,113 @@
+<MainScreen>:
+    MDBoxLayout:
+        orientation: 'vertical'
+
+        MDTopAppBar:
+            title: "Owlish English"
+            title_align: "center"
+            left_action_items: [["", lambda x: None]]
+            right_action_items:
+                [
+                ["book-refresh", lambda x: app.switch_to_review_mode()],
+                ["theme-light-dark", lambda x: app.toggle_theme()]
+                ]
+            pos_hint: {"top": 1}
+            elevation: 4
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: dp(16)
+            spacing: dp(16)
+            size_hint: (0.8, None)
+            height: self.minimum_height
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+
+            MDLabel:
+                id: word_label
+                text: ''
+                font_name: 'Vintage'
+                font_size: dp(32)
+                halign: 'center'
+                size_hint_y: None
+                height: self.texture_size[1]
+
+            MDLabel:
+                id: transcription_label
+                text: ''
+                font_name: 'PhoneticFont'
+                font_size: dp(18)
+                halign: 'center'
+                size_hint_y: None
+                height: self.texture_size[1]
+
+            MDLabel:
+                id: translation_label
+                text: ''
+                font_size: dp(24)
+                halign: 'center'
+                size_hint_y: None
+                height: self.texture_size[1]
+                opacity: 0
+
+            MDLabel:
+                id: mnemonic_label
+                text: ''
+                font_size: dp(18)
+                halign: 'center'
+                size_hint_y: None
+                height: self.texture_size[1]
+                opacity: 0
+
+            MDLabel:
+                id: learned_status
+                text: 'Не изучено'
+                font_size: dp(18)
+                halign: 'center'
+                size_hint_y: None
+                height: self.texture_size[1]
+
+            MDBoxLayout:
+                size_hint_y: None
+                height: dp(48)
+                spacing: dp(8)
+                pos_hint: {'right': 1}  # Это переместит весь BoxLayout вправо
+
+                Widget:
+                    size_hint_x: 1  # Это создаст пустое пространство слева
+                MDIconButton:
+                    icon: 'arrow-left'
+                    on_release: app.load_previous_word() if not app.is_review_mode else app.load_random_learned_word()
+                MDIconButton:
+                    icon: 'arrow-right'
+                    on_release: app.load_next_word() if not app.is_review_mode else app.load_random_learned_word()
+
+            MDRaisedButton:
+                text: 'Показать перевод'
+                size_hint_x: 1
+                on_release: app.show_translation()
+
+            MDRaisedButton:
+                text: 'Показать подсказку'
+                size_hint_x: 1
+                on_release: app.show_mnemonic()
+
+            MDRaisedButton:
+                id: mark_learned_button
+                text: 'Слово Изучено'
+                size_hint_x: 1
+                on_release: app.mark_as_learned()
+                opacity: 1 if not app.is_review_mode else 0
+
+            MDRaisedButton:
+                id: mark_unlearned_button
+                text: 'Отметить как не изученное'
+                size_hint_x: 1
+                on_release: app.mark_as_unlearned()
+                opacity: 0 if not app.is_review_mode else 1
+
+            MDRaisedButton:
+                text: 'Вернуться к изучению' if app.is_review_mode else 'Режим повторения'
+                size_hint_x: 1
+                on_release: app.switch_to_normal_mode() if app.is_review_mode else app.switch_to_review_mode()
+
+
